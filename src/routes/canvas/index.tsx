@@ -18,7 +18,7 @@ const CanvasPage: React.FC = () => {
     let isMounted = true;
 
     async function fetchInitialPixels() {
-      const { data, error } = await supabase.from("pixel").select("*");
+      const { data, error } = await supabase.from("pixel").select();
       if (error) {
         console.error("Failed to load initial pixels:", error);
         return;
