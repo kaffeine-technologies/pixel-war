@@ -50,11 +50,13 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     canvas.height = height * responsiveSize;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Draw all pixels normally
     pixels.forEach((color, key) => {
       const [xStr, yStr] = key.split(":");
       const x = Number(xStr);
       const y = Number(yStr);
       if (isNaN(x) || isNaN(y)) return;
+
       ctx.fillStyle = color;
       ctx.fillRect(
         x * responsiveSize,
@@ -64,7 +66,8 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       );
     });
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+    // Draw grid lines
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
     ctx.lineWidth = 1;
     for (let x = 0; x <= width; x++) {
       ctx.beginPath();
@@ -78,7 +81,26 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       ctx.lineTo(width * responsiveSize, y * responsiveSize);
       ctx.stroke();
     }
-  }, [width, height, responsiveSize, pixels]);
+
+    // Glow effect on hovered pixel
+    if (cursorCoord) {
+      const glowX = cursorCoord.x * responsiveSize;
+      const glowY = cursorCoord.y * responsiveSize;
+
+      ctx.save();
+      ctx.shadowColor = "cyan";
+      ctx.shadowBlur = responsiveSize * 2;
+      ctx.strokeStyle = "cyan";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        glowX + 1,
+        glowY + 1,
+        responsiveSize - 2,
+        responsiveSize - 2
+      );
+      ctx.restore();
+    }
+  }, [width, height, responsiveSize, pixels, cursorCoord]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -127,7 +149,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
 
       <canvas
         ref={canvasRef}
-        className="bg-gray-800 cursor-crosshair block"
+        className="bg-gray-900 cursor-crosshair block"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{
