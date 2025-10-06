@@ -6,12 +6,6 @@ import { supabase } from "@/hooks/supabase"; // <-- your shared client import
 import placePixel, { placePixelsBatch } from "./place-pixel";
 import PixelCanvas from "~/components/organisms/pixel-canvas";
 
-interface Pixel {
-  x: number;
-  y: number;
-  color: string;
-}
-
 const CanvasPage: React.FC = () => {
   const navigate = useNavigate();
   const [showHelp, setShowHelp] = useState(false);
@@ -24,34 +18,24 @@ const CanvasPage: React.FC = () => {
     let isMounted = true;
 
     async function fetchAllPixels() {
-      const { data: totalCount, error: countError } = await supabase.rpc("count_pixels");
-      if (countError) {
-        console.error("Error getting pixel count:", countError);
+      const { data, error } = await supabase.rpc("get_pixels_matrix");
+      if (error) {
+        console.error("Error fetching pixel matrix:", error);
         return;
       }
-      if (!totalCount || typeof totalCount !== 'number') {
-        console.error("Invalid count_pixels response", totalCount);
+      if (!data || !Array.isArray(data)) {
+        console.error("Invalid pixel matrix response", data);
         return;
       }
-
-      const pageSize = 1000;
-      const totalPages = Math.ceil(totalCount / pageSize);
       const map = new Map<string, string>();
-
-      for (let page = 1; page <= totalPages; page++) {
-        if (!isMounted) break;
-
-        const { data, error } = await supabase.rpc("get_pixels_page", { page });
-        if (error) {
-          console.error(`Error fetching page ${page}:`, error);
-          break;
-        }
-        data?.forEach((px: Pixel) => {
-          map.set(`${px.x}:${px.y}`, px.color);
+      data.forEach((row: string[], y: number) => {
+        row.forEach((color, x) => {
+          if (color) {
+            map.set(`${x}:${y}`, color);
+          }
         });
-        // Update map state every page to reflect progress
-        if (isMounted) setPixels(new Map(map));
-      }
+      });
+      if (isMounted) setPixels(map);
     }
 
     fetchAllPixels();
