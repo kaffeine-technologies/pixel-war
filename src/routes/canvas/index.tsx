@@ -24,11 +24,16 @@ const CanvasPage: React.FC = () => {
         return console.error("Invalid data:", data);
 
       const map = new Map<string, string>();
-      data.forEach((row: string[], y: number) => {
+
+      data.forEach((row: (string | null)[], y: number) => {
         row.forEach((color, x) => {
-          if (color) map.set(`${x}:${y}`, color);
+          if (color && color !== "null") {
+            // Skip null/placeholder pixels
+            map.set(`${x}:${y}`, color);
+          }
         });
       });
+
       if (isMounted) setPixels(map);
     }
 
@@ -87,25 +92,40 @@ const CanvasPage: React.FC = () => {
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (command.trim().toLowerCase().startsWith("/json")) {
-      try {
-        const obj = JSON.parse(command.replace(/^\/json\s*/i, ""));
-        placePixelsBatch(supabase, obj);
-      } catch (err) {
-        console.error("Invalid JSON:", err);
+    const trimmedCommand = command.trim().toLowerCase();
+
+    switch (true) {
+      case trimmedCommand.startsWith("/json"): {
+        try {
+          const obj = JSON.parse(command.replace(/^\/json\s*/i, ""));
+          placePixelsBatch(supabase, obj).then((res) => {
+            if (res.error) {
+              console.error("Batch error:", res.error);
+            }
+          });
+        } catch (err) {
+          console.error("Invalid JSON:", err);
+        }
+        setCommand("");
+        break;
       }
-      setCommand("");
-      return;
+
+      case trimmedCommand.startsWith("/nuke"): {
+        alert(t("canvas.nukeCommand"));
+        window.open("/nuke.mp4");
+        setCommand("");
+        break;
+      }
+
+      default: {
+        placePixel(supabase, command).then((res) => {
+          if (res.error) console.error("Place error:", res.error);
+        });
+        setCommand("");
+        break;
+      }
     }
 
-    if (command.trim().toLowerCase().startsWith("/nuke")) {
-      alert(t("canvas.nukeCommand"));
-      window.open("/nuke.mp4");
-      setCommand("");
-      return;
-    }
-
-    placePixel(supabase, command);
     setCommand("");
   };
 
