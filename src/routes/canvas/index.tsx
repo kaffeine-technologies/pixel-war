@@ -6,6 +6,12 @@ import { supabase } from "@/hooks/supabase"; // <-- your shared client import
 import placePixel from "./place-pixel";
 import PixelCanvas from "~/components/organisms/pixel-canvas";
 
+interface Pixel {
+  x: number;
+  y: number;
+  color: string;
+}
+
 const CanvasPage: React.FC = () => {
   const navigate = useNavigate();
   const [showHelp, setShowHelp] = useState(false);
@@ -18,14 +24,14 @@ const CanvasPage: React.FC = () => {
     let isMounted = true;
 
     async function fetchInitialPixels() {
-      const { data, error } = await supabase.from("pixel").select();
-      if (error) {
-        console.error("Failed to load initial pixels:", error);
-        return;
-      }
+      const { data, error } = await supabase.rpc("get_all_pixels");
+      if (error) console.error("RPC error:", error);
+      else console.log("Pixels from RPC:", data);
+
       if (!isMounted) return;
       const map = new Map<string, string>();
-      data?.forEach((px) => {
+
+      data?.forEach((px: Pixel) => {
         map.set(`${px.x}:${px.y}`, px.color);
       });
       setPixels(map);
@@ -138,7 +144,6 @@ const CanvasPage: React.FC = () => {
       {/* Canvas & Input */}
       <main className="flex-grow flex flex-col items-center justify-center p-6 space-y-6">
         <PixelCanvas width={101} height={101} pixelSize={8} pixels={pixels} />
-
 
         <form
           onSubmit={handleCommandSubmit}
