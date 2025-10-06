@@ -1,3 +1,4 @@
+// PixelCanvas.tsx (responsive changes)
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,13 +17,28 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [cursorCoord, setCursorCoord] = useState<{ x: number; y: number } | null>(
-    null
-  );
-  const [cursorPos, setCursorPos] = useState<{ left: number; top: number } | null>(
-    null
-  );
+  const [cursorCoord, setCursorCoord] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [cursorPos, setCursorPos] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const { t } = useTranslation();
+
+  // Adjust pixelSize based on viewport width
+  const [responsiveSize, setResponsiveSize] = useState(pixelSize);
+  useEffect(() => {
+    const updateSize = () => {
+      if (window.innerWidth < 640) setResponsiveSize(4);
+      else if (window.innerWidth < 1024) setResponsiveSize(6);
+      else setResponsiveSize(pixelSize);
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [pixelSize]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -30,9 +46,8 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = width * pixelSize;
-    canvas.height = height * pixelSize;
-
+    canvas.width = width * responsiveSize;
+    canvas.height = height * responsiveSize;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     pixels.forEach((color, key) => {
@@ -40,51 +55,47 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       const x = Number(xStr);
       const y = Number(yStr);
       if (isNaN(x) || isNaN(y)) return;
-
       ctx.fillStyle = color;
-      ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      ctx.fillRect(
+        x * responsiveSize,
+        y * responsiveSize,
+        responsiveSize,
+        responsiveSize
+      );
     });
 
     ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
     ctx.lineWidth = 1;
-
     for (let x = 0; x <= width; x++) {
       ctx.beginPath();
-      ctx.moveTo(x * pixelSize, 0);
-      ctx.lineTo(x * pixelSize, height * pixelSize);
+      ctx.moveTo(x * responsiveSize, 0);
+      ctx.lineTo(x * responsiveSize, height * responsiveSize);
       ctx.stroke();
     }
     for (let y = 0; y <= height; y++) {
       ctx.beginPath();
-      ctx.moveTo(0, y * pixelSize);
-      ctx.lineTo(width * pixelSize, y * pixelSize);
+      ctx.moveTo(0, y * responsiveSize);
+      ctx.lineTo(width * responsiveSize, y * responsiveSize);
       ctx.stroke();
     }
-  }, [width, height, pixelSize, pixels]);
+  }, [width, height, responsiveSize, pixels]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = Math.floor((e.clientX - rect.left) / pixelSize);
-      const y = Math.floor((e.clientY - rect.top) / pixelSize);
+      const x = Math.floor((e.clientX - rect.left) / responsiveSize);
+      const y = Math.floor((e.clientY - rect.top) / responsiveSize);
 
       if (x >= 0 && x < width && y >= 0 && y < height) {
         setCursorCoord({ x, y });
 
-        // Position floating box, adjust so it stays inside container
         if (containerRef.current) {
           const containerRect = containerRef.current.getBoundingClientRect();
-          let left = e.clientX - containerRect.left + 15; // shift right
-          let top = e.clientY - containerRect.top + 15; // shift down
-
-          // Clamp horizontally
-          const maxLeft = containerRect.width - 100; // box width approx 90-100px
-          if (left > maxLeft) left = maxLeft;
-
-          // Clamp vertically
-          const maxTop = containerRect.height - 30; // box height approx 25-30px
-          if (top > maxTop) top = maxTop;
-
+          let left = e.clientX - containerRect.left + 15;
+          let top = e.clientY - containerRect.top + 15;
+          if (left > containerRect.width - 100)
+            left = containerRect.width - 100;
+          if (top > containerRect.height - 30) top = containerRect.height - 30;
           setCursorPos({ left, top });
         }
       } else {
@@ -92,7 +103,7 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
         setCursorPos(null);
       }
     },
-    [width, height, pixelSize]
+    [width, height, responsiveSize]
   );
 
   const handleMouseLeave = () => {
@@ -102,32 +113,27 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
 
   return (
     <div
-      className="relative select-none inline-block"
+      className="relative select-none inline-block overflow-auto"
       ref={containerRef}
-      style={{
-        width: width * pixelSize,
-        height: height * pixelSize + 30, // extra for top coordinates display
-      }}
+      style={{ maxWidth: "100%" }}
     >
-      <div className="mb-2 text-white font-mono select-none">
+      <div className="mb-2 text-white font-mono select-none text-xs sm:text-sm">
         {cursorCoord
           ? `${t("canvas.cursorInfoPrefix")}${cursorCoord.x}${t(
               "canvas.cursorInfoSeparator"
             )}${cursorCoord.y}`
-          : t("canvas.cursorInfoPlaceholder", "Move cursor over the canvas to see coordinates")}
+          : t("canvas.cursorInfoPlaceholder")}
       </div>
 
       <canvas
         ref={canvasRef}
-        className="bg-gray-800 cursor-crosshair"
+        className="bg-gray-800 cursor-crosshair block"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{
           imageRendering: "pixelated",
-          width: width * pixelSize,
-          height: height * pixelSize,
-          display: "block",
-          userSelect: "none",
+          width: width * responsiveSize,
+          height: height * responsiveSize,
         }}
       />
 
