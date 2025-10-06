@@ -9,7 +9,7 @@ function escapeHtml(text: string) {
     '"': "&quot;",
     "'": "&#039;",
   };
-  return text.replace(/[&<>"']/g, function(m) {
+  return text.replace(/[&<>"']/g, function (m) {
     return map[m];
   });
 }
@@ -33,7 +33,9 @@ function parsePlaceCommand(command: string) {
 
   // Validate presence of required params
   if (
-    !args.x || !args.y || !args.c ||
+    !args.x ||
+    !args.y ||
+    !args.c ||
     isNaN(Number(args.x)) ||
     isNaN(Number(args.y))
   ) {
@@ -63,8 +65,49 @@ async function placePixel(
     const { error } = await supabase.rpc("PlacePixel", { px, py, pcolor });
     return { error: error ? error.message : null };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "An unknown error occurred" };
+    return {
+      error: err instanceof Error ? err.message : "An unknown error occurred",
+    };
   }
 }
 
+export async function placePixelsBatch(
+  supabase: SupabaseClient,
+  obj: Record<string, string>
+): Promise<{ error: string | null }> {
+  try {
+    const keys = Object.keys(obj);
+    const batchSize = 1000;
+    let errorMessage: string | null = null;
+
+    for (let i = 0; i < keys.length; i += batchSize) {
+      const chunkKeys = keys.slice(i, i + batchSize);
+      const chunk: Record<string, string> = {};
+
+      for (const k of chunkKeys) {
+        // simple key check like "x:y"
+        if (!/^\d+:\d+$/.test(k)) continue;
+        let color = obj[k].trim();
+        if (color.length > 20) color = color.slice(0, 20);
+        chunk[k] = color;
+      }
+
+      if (Object.keys(chunk).length === 0) continue;
+
+      const { error } = await supabase.rpc("place_pixels_batch", {
+        pixels: chunk,
+      });
+      if (error) {
+        errorMessage = error.message;
+        break;
+      }
+    }
+
+    return { error: errorMessage };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "An unknown error occurred",
+    };
+  }
+}
 export default placePixel;

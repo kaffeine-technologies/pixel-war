@@ -19,7 +19,8 @@ const de = {
     cursorInfoPlaceholder: "Bewegen Sie den Cursor in der Zone, um Koordinaten zu sehen.",
     commandPlaceholder: "/place -x 100 -y 100 -c #13492",
     cursorInfoPrefix: "Cursor: x=",
-    cursorInfoSeparator: ", y="
+    cursorInfoSeparator: ", y=",
+    nukeCommand: "Du glaubst dir cool zu sein? Skill issue!",
   }
 };
 

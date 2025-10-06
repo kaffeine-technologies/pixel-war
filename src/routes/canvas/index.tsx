@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import LanguageSwitcher from "@/components/molecules/change-lang";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/hooks/supabase"; // <-- your shared client import
-import placePixel from "./place-pixel";
+import placePixel, { placePixelsBatch } from "./place-pixel";
 import PixelCanvas from "~/components/organisms/pixel-canvas";
 
 interface Pixel {
@@ -23,20 +23,38 @@ const CanvasPage: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
-    async function fetchInitialPixels() {
-      const { data, error } = await supabase.rpc("get_all_pixels");
-      if (error) console.error("RPC error:", error);
-      else console.log("Pixels from RPC:", data);
+    async function fetchAllPixels() {
+      const { data: totalCount, error: countError } = await supabase.rpc("count_pixels");
+      if (countError) {
+        console.error("Error getting pixel count:", countError);
+        return;
+      }
+      if (!totalCount || typeof totalCount !== 'number') {
+        console.error("Invalid count_pixels response", totalCount);
+        return;
+      }
 
-      if (!isMounted) return;
+      const pageSize = 1000;
+      const totalPages = Math.ceil(totalCount / pageSize);
       const map = new Map<string, string>();
 
-      data?.forEach((px: Pixel) => {
-        map.set(`${px.x}:${px.y}`, px.color);
-      });
-      setPixels(map);
+      for (let page = 1; page <= totalPages; page++) {
+        if (!isMounted) break;
+
+        const { data, error } = await supabase.rpc("get_pixels_page", { page });
+        if (error) {
+          console.error(`Error fetching page ${page}:`, error);
+          break;
+        }
+        data?.forEach((px: Pixel) => {
+          map.set(`${px.x}:${px.y}`, px.color);
+        });
+        // Update map state every page to reflect progress
+        if (isMounted) setPixels(new Map(map));
+      }
     }
-    fetchInitialPixels();
+
+    fetchAllPixels();
 
     const channel = supabase
       .channel("pixel_changes")
@@ -105,8 +123,36 @@ const CanvasPage: React.FC = () => {
 
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: implement command handling, input clearing for now
-    placePixel(supabase, command);
+
+    // If command starts with /json then try parsing JSON
+    if (command.trim().toLowerCase().startsWith("/json")) {
+      try {
+        const jsonPart = command.replace(/^\/json\s*/i, "");
+        const obj = JSON.parse(jsonPart);
+        placePixelsBatch(supabase, obj).then((res) => {
+          if (res.error) {
+            console.error("Batch error:", res.error);
+          }
+        });
+      } catch (err) {
+        console.error("Invalid JSON:", err);
+      }
+      setCommand("");
+      return;
+    }
+
+    if (command.trim().toLowerCase().startsWith("/nuke")) {
+      // alert and open the window to rickroll
+      alert(t("canvas.nukeCommand"));
+      window.open("/nuke.mp4");
+      setCommand("");
+      return;
+    }
+
+    // fallback to normal /place command
+    placePixel(supabase, command).then((res) => {
+      if (res.error) console.error("Place error:", res.error);
+    });
     setCommand("");
   };
 
