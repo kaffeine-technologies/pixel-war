@@ -106,14 +106,12 @@ const CanvasPage: React.FC = () => {
         } catch (err) {
           console.error("Invalid JSON:", err);
         }
-        setCommand("");
         break;
       }
 
       case trimmedCommand.startsWith("/nuke"): {
         alert(t("canvas.nukeCommand"));
         window.open("/nuke.mp4");
-        setCommand("");
         break;
       }
 
@@ -121,12 +119,9 @@ const CanvasPage: React.FC = () => {
         placePixel(supabase, command).then((res) => {
           if (res.error) console.error("Place error:", res.error);
         });
-        setCommand("");
         break;
       }
     }
-
-    setCommand("");
   };
 
   return (
