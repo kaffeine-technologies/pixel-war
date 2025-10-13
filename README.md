@@ -1,6 +1,8 @@
 # 🎨 Pixel War
 
 > A developer-style twist on the classic Pixel War — this time, you don’t click… you **/place** your pixels.
+> 
+<img width="2148" height="1286" alt="image" src="https://github.com/user-attachments/assets/b7ed1889-89db-410e-8854-8707d5eee977" />
 
 ---
 
