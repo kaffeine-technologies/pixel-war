@@ -1,11 +1,23 @@
 import React, { useState } from "react";
 import LanguageSwitcher from "../molecules/change-lang";
+import CanvasSelector from "../molecules/canvas-selector";
+import type { Canvas } from "~/routes/canvas/canvases";
 
 const CanvasTopMenu: React.FC<{
   onQuit: () => void;
   onHelpToggle: () => void;
+  canvases: Canvas[];
+  selectedCanvasId?: number;
+  onSelectCanvas: (id: number) => void;
   t: (key: string) => string;
-}> = ({ onQuit, onHelpToggle, t }) => {
+}> = ({
+  onQuit,
+  onHelpToggle,
+  canvases,
+  selectedCanvasId,
+  onSelectCanvas,
+  t,
+}) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const toggleMenu = () => setMenuOpen((open) => !open);
@@ -18,7 +30,14 @@ const CanvasTopMenu: React.FC<{
       </h1>
 
       {/* Desktop menu */}
-      <div className="hidden sm:flex items-center space-x-3">
+      <div className="hidden lg:flex items-center space-x-3">
+        {canvases.length > 0 && (
+          <CanvasSelector
+            canvases={canvases}
+            selectedId={selectedCanvasId}
+            onSelect={onSelectCanvas}
+          />
+        )}
         <LanguageSwitcher />
         <button
           aria-label={t("canvas.helpTitle")}
@@ -38,7 +57,7 @@ const CanvasTopMenu: React.FC<{
       </div>
 
       {/* Mobile hamburger */}
-      <div className="sm:hidden relative">
+      <div className="lg:hidden relative">
         <button
           onClick={toggleMenu}
           aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -47,7 +66,17 @@ const CanvasTopMenu: React.FC<{
           &#9776;
         </button>
         {menuOpen && (
-          <div className="absolute right-0 mt-2 w-40 bg-blue-900 rounded-md shadow-lg flex flex-col space-y-2 p-3 z-50">
+          <div className="absolute right-0 mt-2 w-56 bg-blue-900 rounded-md shadow-lg flex flex-col space-y-2 p-3 z-50">
+            {canvases.length > 0 && (
+              <CanvasSelector
+                canvases={canvases}
+                selectedId={selectedCanvasId}
+                onSelect={(id) => {
+                  onSelectCanvas(id);
+                  closeMenu();
+                }}
+              />
+            )}
             <div onClick={closeMenu}>
               <LanguageSwitcher />
             </div>

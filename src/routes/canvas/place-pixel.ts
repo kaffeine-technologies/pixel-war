@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import type { Canvas } from "./canvases";
 
 // Utility function to escape HTML special chars (simple sanitation)
 function escapeHtml(text: string) {
@@ -57,12 +58,18 @@ function parsePlaceCommand(command: string) {
 
 async function placePixel(
   supabase: SupabaseClient,
+  canvasId: number,
   command: string
 ): Promise<{ error: string | null }> {
   try {
     const { px, py, pcolor } = parsePlaceCommand(command);
 
-    const { error } = await supabase.rpc("PlacePixel", { px, py, pcolor });
+    const { error } = await supabase.rpc("PlacePixel", {
+      pcanvas_id: canvasId,
+      px,
+      py,
+      pcolor,
+    });
     return { error: error ? error.message : null };
   } catch (err) {
     return {
@@ -73,6 +80,7 @@ async function placePixel(
 
 export async function placePixelsBatch(
   supabase: SupabaseClient,
+  canvas: Pick<Canvas, "id" | "width" | "height">,
   obj: Record<string, string>
 ): Promise<{ error: string | null }> {
   try {
@@ -87,14 +95,19 @@ export async function placePixelsBatch(
       for (const k of chunkKeys) {
         // simple key check like "x:y"
         if (!/^\d+:\d+$/.test(k)) continue;
+        // skip pixels outside the canvas, the database would reject the whole chunk
+        const [x, y] = k.split(":").map(Number);
+        if (x >= canvas.width || y >= canvas.height) continue;
         let color = obj[k].trim();
         if (color.length > 20) color = color.slice(0, 20);
-        chunk[k] = color;
+        // normalized so "01:2" and "1:2" don't hit the same pixel twice
+        chunk[`${x}:${y}`] = color;
       }
 
       if (Object.keys(chunk).length === 0) continue;
 
       const { error } = await supabase.rpc("place_pixels_batch", {
+        pcanvas_id: canvas.id,
         pixels: chunk,
       });
       if (error) {

@@ -6,17 +6,22 @@ type PixelCanvasProps = {
   width: number;
   height: number;
   pixelSize?: number;
-  pixels: Map<string, string>;
+  // RGBA bytes of the cells, row by row
+  board: Uint8ClampedArray<ArrayBuffer>;
+  // Changes when board is updated in place
+  version: number;
 };
+
+const gridColor = "rgba(255, 255, 255, 0.2)";
 
 const PixelCanvas: React.FC<PixelCanvasProps> = ({
   width,
   height,
   pixelSize = 8,
-  pixels,
+  board,
+  version,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [cursorCoord, setCursorCoord] = useState<{
     x: number;
     y: number;
@@ -40,67 +45,17 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     return () => window.removeEventListener("resize", updateSize);
   }, [pixelSize]);
 
+  // One canvas pixel per cell, scaled up by CSS: the grid and the hover glow
+  // are separate elements, so neither is redrawn with the board
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = width * responsiveSize;
-    canvas.height = height * responsiveSize;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw all pixels normally
-    pixels.forEach((color, key) => {
-      const [xStr, yStr] = key.split(":");
-      const x = Number(xStr);
-      const y = Number(yStr);
-      if (isNaN(x) || isNaN(y)) return;
-
-      ctx.fillStyle = color;
-      ctx.fillRect(
-        x * responsiveSize,
-        y * responsiveSize,
-        responsiveSize,
-        responsiveSize
-      );
-    });
-
-    // Draw grid lines
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= width; x++) {
-      ctx.beginPath();
-      ctx.moveTo(x * responsiveSize, 0);
-      ctx.lineTo(x * responsiveSize, height * responsiveSize);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= height; y++) {
-      ctx.beginPath();
-      ctx.moveTo(0, y * responsiveSize);
-      ctx.lineTo(width * responsiveSize, y * responsiveSize);
-      ctx.stroke();
-    }
-
-    // Glow effect on hovered pixel
-    if (cursorCoord) {
-      const glowX = cursorCoord.x * responsiveSize;
-      const glowY = cursorCoord.y * responsiveSize;
-
-      ctx.save();
-      ctx.shadowColor = "cyan";
-      ctx.shadowBlur = responsiveSize * 2;
-      ctx.strokeStyle = "cyan";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(
-        glowX + 1,
-        glowY + 1,
-        responsiveSize - 2,
-        responsiveSize - 2
-      );
-      ctx.restore();
-    }
-  }, [width, height, responsiveSize, pixels, cursorCoord]);
+    // Still the board of the previous canvas: wait for the new one
+    if (board.length !== width * height * 4)
+      return ctx.clearRect(0, 0, width, height);
+    ctx.putImageData(new ImageData(board, width, height), 0, 0);
+  }, [width, height, board, version]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -109,17 +64,16 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
       const y = Math.floor((e.clientY - rect.top) / responsiveSize);
 
       if (x >= 0 && x < width && y >= 0 && y < height) {
-        setCursorCoord({ x, y });
-
-        if (containerRef.current) {
-          const containerRect = containerRef.current.getBoundingClientRect();
-          let left = e.clientX - containerRect.left + 15;
-          let top = e.clientY - containerRect.top + 15;
-          if (left > containerRect.width - 100)
-            left = containerRect.width - 100;
-          if (top > containerRect.height - 30) top = containerRect.height - 30;
-          setCursorPos({ left, top });
-        }
+        setCursorCoord((prev) =>
+          prev && prev.x === x && prev.y === y ? prev : { x, y }
+        );
+        // In viewport coordinates: the board may be scrolled
+        const viewportWidth = document.documentElement.clientWidth;
+        const viewportHeight = document.documentElement.clientHeight;
+        setCursorPos({
+          left: Math.min(e.clientX + 15, viewportWidth - 130),
+          top: Math.min(e.clientY + 15, viewportHeight - 30),
+        });
       } else {
         setCursorCoord(null);
         setCursorPos(null);
@@ -133,39 +87,73 @@ const PixelCanvas: React.FC<PixelCanvasProps> = ({
     setCursorPos(null);
   };
 
+  const boardWidth = width * responsiveSize;
+  const boardHeight = height * responsiveSize;
+
   return (
     <div
       className="relative select-none inline-block overflow-auto"
-      ref={containerRef}
       style={{ maxWidth: "100%" }}
     >
-      <div className="mb-2 text-white font-mono select-none text-xs sm:text-sm">
-        {cursorCoord
-          ? `${t("canvas.cursorInfoPrefix")}${cursorCoord.x}${t(
+      {/* Both texts share one cell, so the width doesn't change on hover */}
+      <div className="sticky left-0 mb-2 grid text-white font-mono select-none text-xs sm:text-sm">
+        <span
+          className={`col-start-1 row-start-1 ${cursorCoord ? "invisible" : ""}`}
+        >
+          {t("canvas.cursorInfoPlaceholder")}
+        </span>
+        {cursorCoord && (
+          <span className="col-start-1 row-start-1">
+            {`${t("canvas.cursorInfoPrefix")}${cursorCoord.x}${t(
               "canvas.cursorInfoSeparator"
-            )}${cursorCoord.y}`
-          : t("canvas.cursorInfoPlaceholder")}
+            )}${cursorCoord.y}`}
+          </span>
+        )}
       </div>
 
-      <canvas
-        ref={canvasRef}
-        className="bg-gray-900 cursor-crosshair block"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          imageRendering: "pixelated",
-          width: width * responsiveSize,
-          height: height * responsiveSize,
-        }}
-      />
+      <div className="relative" style={{ width: boardWidth, height: boardHeight }}>
+        <canvas
+          ref={canvasRef}
+          width={width}
+          height={height}
+          className="bg-gray-900 cursor-crosshair block"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            imageRendering: "pixelated",
+            width: boardWidth,
+            height: boardHeight,
+          }}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `linear-gradient(to right, ${gridColor} 1px, transparent 1px), linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)`,
+            backgroundSize: `${responsiveSize}px ${responsiveSize}px`,
+            boxShadow: `inset -1px -1px 0 ${gridColor}`,
+          }}
+        />
+        {/* Glow effect on hovered pixel */}
+        {cursorCoord && (
+          <div
+            className="absolute pointer-events-none border-2 border-cyan-400"
+            style={{
+              left: cursorCoord.x * responsiveSize,
+              top: cursorCoord.y * responsiveSize,
+              width: responsiveSize,
+              height: responsiveSize,
+              boxShadow: `0 0 ${responsiveSize}px cyan`,
+            }}
+          />
+        )}
+      </div>
 
       {cursorPos && cursorCoord && (
         <div
-          className="absolute bg-black bg-opacity-75 text-white text-xs rounded px-2 py-1 pointer-events-none select-none shadow-lg font-mono"
+          className="fixed bg-black bg-opacity-75 text-white text-xs rounded px-2 py-1 pointer-events-none select-none shadow-lg font-mono"
           style={{
             left: cursorPos.left,
             top: cursorPos.top,
-            width: 90,
             whiteSpace: "nowrap",
             zIndex: 10,
           }}
