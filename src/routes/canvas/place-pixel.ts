@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { Canvas } from "./canvases";
+import { isValidColor } from "~/utils/color";
 
 // Utility function to escape HTML special chars (simple sanitation)
 function escapeHtml(text: string) {
@@ -47,6 +48,10 @@ function parsePlaceCommand(command: string) {
   let pcolor = escapeHtml(args.c);
   if (pcolor.length > 20) {
     pcolor = pcolor.slice(0, 20); // limit length to prevent abuse
+  }
+  // The board couldn't draw it
+  if (!isValidColor(pcolor)) {
+    throw new Error("Invalid color");
   }
 
   return {
@@ -100,6 +105,7 @@ export async function placePixelsBatch(
         if (x >= canvas.width || y >= canvas.height) continue;
         let color = obj[k].trim();
         if (color.length > 20) color = color.slice(0, 20);
+        if (!isValidColor(color)) continue;
         // normalized so "01:2" and "1:2" don't hit the same pixel twice
         chunk[`${x}:${y}`] = color;
       }

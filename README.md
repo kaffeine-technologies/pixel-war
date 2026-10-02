@@ -81,7 +81,7 @@ The database has two tables.
 - `id` (uuid, primary key)
 - `canvas_id` (bigint, foreign key to `canvas`): deleting a canvas deletes its pixels
 - `x`, `y` (integer), unique per canvas
-- `color` (text): 20 characters max for new pixels (a migrated database keeps longer legacy colors until they are repainted)
+- `color` (text): 20 characters max for new pixels (a migrated database keeps longer legacy colors until they are repainted). The commands refuse colors the browser can't parse, and the board draws older invalid ones in black.
 
 A CHECK constraint can't read another table, so the bounds that depend on the canvas size are enforced by triggers (`pgsql/canvas-bounds.sql`): a pixel must fit in its canvas, and a canvas can't shrink below the pixels it holds. To shrink one, delete the pixels outside in the same transaction:
 
